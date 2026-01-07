@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role; // <-- Важливо: імпортуємо модель Role
 
 class DatabaseSeeder extends Seeder
 {
@@ -14,24 +13,28 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Створення Ролей
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $teacherRole = Role::firstOrCreate(['name' => 'teacher']);
+        // 1. Викликаємо RoleSeeder для створення всіх ролей (admin, teacher)
+        // Це прибирає дублювання коду.
+        $this->call([
+            RoleSeeder::class,
+        ]);
 
         // 2. Створення тестового Адміністратора
         $admin = User::firstOrCreate(
             ['email' => 'admin@crm.test'],
             [
                 'name' => 'Головний Адміністратор',
-                'password' => Hash::make('password'), // Замініть надійнішим паролем для продакшну
+                'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]
         );
 
-        // 3. Призначення ролі Адміністратору
-        $admin->assignRole($adminRole);
+        // Призначаємо роль за назвою (Spatie це підтримує автоматично)
+        if (!$admin->hasRole('admin')) {
+            $admin->assignRole('admin');
+        }
 
-        // 4. Створення тестового Викладача
+        // 3. Створення тестового Викладача
         $teacher = User::firstOrCreate(
             ['email' => 'teacher@crm.test'],
             [
@@ -41,7 +44,9 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // 5. Призначення ролі Викладачу
-        $teacher->assignRole($teacherRole);
+        // Призначаємо роль за назвою
+        if (!$teacher->hasRole('teacher')) {
+            $teacher->assignRole('teacher');
+        }
     }
 }
