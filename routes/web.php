@@ -49,12 +49,7 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
 
     // 2. СЕКЦІЯ АДМІНІСТРАТОРА (Вкладено всередину /api та auth:sanctum)
     Route::middleware('role:admin')->group(function () {
-        // Маршрут: /api/admin/users
-        Route::get('admin/users', [UserController::class, 'index']);
-
-        // ДОДАТИ: Створення, Оновлення, Видалення користувачів через ресурс
-        Route::apiResource('admin/users', UserController::class)
-            ->only(['store', 'update', 'destroy']);
+        Route::apiResource('admin/users', UserController::class);
 
         // Тут будуть усі інші маршрути адміністратора
         // Route::post('admin/users', [UserController::class, 'store']);

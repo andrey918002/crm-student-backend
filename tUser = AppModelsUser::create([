@@ -1,0 +1,37 @@
+[90m= [39m[34;4mIlluminate\Support\Collection[39;24m {#6180
+    [34mall[39m: [
+      [
+        "[34mid[39m" => [35m1[39m,
+        "[34mname[39m" => "[32mГоловний Адміністратор[39m",
+        "[34memail[39m" => "[32madmin@crm.test[39m",
+        "[34mroles[39m" => [
+          "[32madmin[39m",
+        ],
+      ],
+      [
+        "[34mid[39m" => [35m2[39m,
+        "[34mname[39m" => "[32mТестовий Викладач[39m",
+        "[34memail[39m" => "[32mteacher@crm.test[39m",
+        "[34mroles[39m" => [
+          "[32mteacher[39m",
+        ],
+      ],
+      [
+        "[34mid[39m" => [35m6[39m,
+        "[34mname[39m" => "[32mvasya[39m",
+        "[34memail[39m" => "[32mvasya@gmail.com[39m",
+        "[34mroles[39m" => [
+          "[32mteacher[39m",
+        ],
+      ],
+      [
+        "[34mid[39m" => [35m7[39m,
+        "[34mname[39m" => "[32mivan[39m",
+        "[34memail[39m" => "[32mivan@gmail.com[39m",
+        "[34mroles[39m" => [
+          "[32mteacher[39m",
+        ],
+      ],
+    ],
+  }
+

@@ -12,7 +12,6 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     /**
@@ -47,5 +46,15 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+    protected static function booted()
+    {
+        static::created(function ($user) {
+            // Якщо у користувача ще немає ролі (наприклад, при реєстрації),
+            // даємо йому роль 'teacher'
+            if ($user->roles()->count() === 0) {
+                $user->assignRole('teacher');
+            }
+        });
     }
 }
