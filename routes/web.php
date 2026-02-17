@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -51,6 +52,8 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::apiResource('admin/users', UserController::class);
 
+        Route::get('/admin/stats', [DashboardController::class, 'stats']);
+
         // Тут будуть усі інші маршрути адміністратора
         // Route::post('admin/users', [UserController::class, 'store']);
     });
@@ -59,5 +62,6 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
     Route::middleware('role:teacher')->group(function () {
         // Маршрут: /api/teacher/groups
         Route::get('teacher/groups', [GroupController::class, 'index']);
+        Route::patch('teacher/groups/{group}/students/{student}/grade', [GroupController::class, 'updateGrade']);
     });
 });

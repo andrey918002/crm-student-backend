@@ -23,6 +23,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'specialization',
+        'weekly_load',
     ];
 
     /**
@@ -56,5 +58,11 @@ class User extends Authenticatable
                 $user->assignRole('teacher');
             }
         });
+    }
+    public function groups()
+    {
+        // Зв'язок: один викладач має багато груп
+        // teacher_id — це буде колонка в таблиці groups
+        return $this->hasMany(\App\Models\Group::class, 'teacher_id');
     }
 }

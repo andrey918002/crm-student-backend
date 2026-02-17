@@ -11,81 +11,91 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     /**
-     * Отримати список усіх користувачів (для таблиці в адмінці)
+     * Отримати список усіх користувачів.
+     * Додано: підвантаження ролей ТА груп для вчителів.
      */
     public function index()
     {
-        $users = User::with('roles')->paginate(10);
+        // Додаємо 'groups', щоб фронтенд міг показати кількість груп у кожного вчителя
+        $users = User::with(['roles', 'groups'])->get();
 
         return response()->json([
+            'status'  => 'success',
             'message' => 'Список користувачів отримано',
             'data' => $users,
         ], 200);
     }
 
     /**
-     * Створити користувача через адмін-панель (з вибором ролі)
+     * Створити користувача через адмін-панель.
+     * Додано: підтримка спеціалізації та навантаження.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
-            'role'     => ['required', Rule::in(['admin', 'teacher'])],
+            'name'           => 'required|string|max:255',
+            'email'          => 'required|string|email|max:255|unique:users',
+            'password'       => 'required|string|min:8',
+            'role'           => ['required', Rule::in(['admin', 'teacher'])],
+            'specialization' => 'nullable|string|max:255',
+            'weekly_load'    => 'nullable|integer|min:0|max:168',
         ]);
 
         $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'name'           => $validated['name'],
+            'email'          => $validated['email'],
+            'password'       => Hash::make($validated['password']),
+            'specialization' => $validated['specialization'] ?? null,
+            'weekly_load'    => $validated['weekly_load'] ?? 0,
         ]);
 
-        // Оскільки в моделі спрацював 'booted' і дав 'teacher',
-        // ми синхронізуємо роль на ту, яку обрав адмін.
+        // Синхронізуємо обрану роль
         $user->syncRoles([$validated['role']]);
 
         return response()->json([
             'message' => 'Користувача успішно створено адміном',
-            'user'    => $user->load('roles')
+            'user'    => $user->load('roles', 'groups')
         ], 201);
     }
 
     /**
-     * Оновити дані користувача та його роль
+     * Оновити дані користувача.
+     * Додано: оновлення нових полів.
      */
     public function update(Request $request, string $id)
     {
         $user = User::findOrFail($id);
 
         $validated = $request->validate([
-            'name'  => 'sometimes|string|max:255',
-            'email' => ['sometimes', 'email', Rule::unique('users')->ignore($user->id)],
-            'role'  => ['sometimes', Rule::in(['admin', 'teacher'])],
+            'name'           => 'sometimes|string|max:255',
+            'email'          => ['sometimes', 'email', Rule::unique('users')->ignore($user->id)],
+            'role'           => ['sometimes', Rule::in(['admin', 'teacher'])],
+            'specialization' => 'sometimes|nullable|string|max:255',
+            'weekly_load'    => 'sometimes|integer|min:0|max:168',
         ]);
 
-        // Оновлюємо тільки ті поля, що прийшли в запиті
-        $user->update($request->only('name', 'email'));
+        // Оновлюємо тільки ті поля, що пройшли валідацію
+        $user->update($validated);
 
-        // Якщо адмін змінив роль
+        // Якщо в запиті була зміна ролі
         if ($request->has('role')) {
             $user->syncRoles([$request->role]);
         }
 
         return response()->json([
             'message' => 'Дані користувача оновлено',
-            'user'    => $user->load('roles')
+            'user'    => $user->load('roles', 'groups')
         ]);
     }
 
     /**
-     * Видалити користувача
+     * Видалити користувача.
      */
     public function destroy(string $id)
     {
         $user = User::findOrFail($id);
 
-        // Захист: адмін не може видалити сам себе
+        // Захист від самовидалення
         if ($user->id === auth()->id()) {
             return response()->json(['message' => 'Ви не можете видалити власний акаунт'], 403);
         }

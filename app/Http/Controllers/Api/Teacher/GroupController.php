@@ -8,49 +8,79 @@ use Illuminate\Http\Request;
 class GroupController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Отримати список груп поточного викладача з учнями.
      */
     public function index(Request $request)
     {
-        // У цьому місці ви будете фільтрувати групи
-        // за ID поточного викладача ($request->user()->id).
+        // Додаємо with('students'), щоб підтягнути список учнів для кожної групи
+        $groups = $request->user()->groups()
+            ->with('students')
+            ->latest()
+            ->get();
 
         return response()->json([
-            'message' => 'Успішний доступ. Ви TEACHER. Тут будуть ваші групи.',
-            'user' => $request->user()->name,
-            'role_check' => true
+            'status' => 'success',
+            'message' => 'Список ваших груп та студентів отримано',
+            'data' => $groups
         ], 200);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Отримати детальну інформацію про конкретну групу.
      */
-    public function store(Request $request)
+    public function show(Request $request, string $id)
     {
-        //
+        // Тут також додаємо завантаження студентів
+        $group = $request->user()->groups()
+            ->with('students')
+            ->findOrFail($id);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $group
+        ], 200);
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
+     * Оновити прогрес або статус групи.
      */
     public function update(Request $request, string $id)
     {
-        //
-    }
+        $group = $request->user()->groups()->findOrFail($id);
 
+        $validated = $request->validate([
+            'progress' => 'sometimes|integer|min:0|max:100',
+            'status' => 'sometimes|string|in:Набір,Активна,Завершена',
+        ]);
+
+        $group->update($validated);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Дані групи оновлено',
+            'data' => $group
+        ]);
+    }
     /**
-     * Remove the specified resource from storage.
+     * Оновити оцінку студента в групі.
      */
-    public function destroy(string $id)
+    public function updateGrade(Request $request, $groupId, $studentId)
     {
-        //
+        $request->validate([
+            'grade' => 'required|integer|min:0|max:100',
+        ]);
+
+        // Знаходимо групу цього вчителя
+        $group = $request->user()->groups()->findOrFail($groupId);
+
+        // Оновлюємо оцінку в проміжній таблиці (pivot)
+        $group->students()->updateExistingPivot($studentId, [
+            'grade' => $request->grade
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Оцінку студента оновлено'
+        ]);
     }
 }
