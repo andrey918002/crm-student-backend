@@ -1,16 +1,19 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\DashboardController;
-use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProfileController; // Стандартный для Inertia
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Illuminate\Http\Request; // Додали Request
+use Illuminate\Http\Request;
+
+// Импортируем API контроллеры с псевдонимами, чтобы не было ошибки "name already in use"
+use App\Http\Controllers\Api\ProfileController as ApiProfileController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Teacher\GroupController;
 
 // =========================================================================
-// INERTIA/WEB ROUTES (Існуючі маршрути Breeze)
+// INERTIA/WEB ROUTES (Для стандартного отображения страниц)
 // =========================================================================
 
 Route::get('/', function () {
@@ -26,45 +29,45 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+// Веб-интерфейс профиля (оставляем как есть)
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// Підключення маршрутів Breeze (login, register, logout)
 require __DIR__.'/auth.php';
 
-
 // =========================================================================
-// API ROUTES FOR FRONTEND (ЗАХИЩЕНІ СЕСІЄЮ SANCTUM)
+// API ROUTES FOR FRONTEND (Работа с React/Axios через JSON)
 // =========================================================================
 
 Route::prefix('api')->middleware('auth:sanctum')->group(function () {
 
-    // 1. Маршрут для отримання даних поточного користувача (/api/user)
+    // 1. Текущий пользователь
     Route::get('/user', function (Request $request) {
-        // !!! ВИПРАВЛЕНО: Додаємо завантаження ролей (load('roles')) !!!
         return $request->user()->load('roles');
     });
 
-    // 2. СЕКЦІЯ АДМІНІСТРАТОРА (Вкладено всередину /api та auth:sanctum)
+    // 2. Личный профиль (API версия для SPA)
+    // Используем псевдоним ApiProfileController
+    Route::get('/profile/data', [ApiProfileController::class, 'show']);
+    Route::put('/profile/data', [ApiProfileController::class, 'update']);
+
+    // 3. Секция администратора
     Route::middleware('role:admin')->group(function () {
+        // Управление персоналом (CRUD)
         Route::apiResource('admin/users', UserController::class);
 
-        // ОСТАВЛЯЕМ ТОЛЬКО ЭТОТ МАРШРУТ:
-        // Он соответствует тому, что ищет фронтенд (/api/admin/stats)
-        // И вызывает правильный метод (getStats), который возвращает нужный JSON
-        Route::get('/admin/stats', [DashboardController::class, 'getStats']);
+        // Тот самый эндпоинт для смены роли (Условие: Админ <-> Учитель)
+        Route::put('admin/users/{user}/role', [UserController::class, 'updateRole']);
 
-        // УДАЛИ или закомментируй эти строки, если они есть ниже:
-        // Route::get('/admin/dashboard-stats', [DashboardController::class, 'getStats']);
-        // Route::get('/admin/stats', [DashboardController::class, 'stats']);
+        // Статистика для дашборда
+        Route::get('/admin/stats', [DashboardController::class, 'getStats']);
     });
 
-    // 3. СЕКЦІЯ ВИКЛАДАЧА (Вкладено всередину /api та auth:sanctum)
+    // 4. Секция преподавателя
     Route::middleware('role:teacher')->group(function () {
-        // Маршрут: /api/teacher/groups
         Route::get('teacher/groups', [GroupController::class, 'index']);
         Route::patch('teacher/groups/{group}/students/{student}/grade', [GroupController::class, 'updateGrade']);
     });
