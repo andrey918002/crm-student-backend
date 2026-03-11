@@ -23,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'status', // КРИТИЧНО: Додайте це поле, щоб працював статус активності
         'specialization',
         'weekly_load',
     ];
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
     protected static function booted()
     {
         static::created(function ($user) {
@@ -59,10 +61,22 @@ class User extends Authenticatable
             }
         });
     }
+
     public function groups()
     {
         // Зв'язок: один викладач має багато груп
-        // teacher_id — це буде колонка в таблиці groups
         return $this->hasMany(\App\Models\Group::class, 'teacher_id');
+    }
+
+    // НОВІ ЗВ'ЯЗКИ ДЛЯ СТАТИСТИКИ ДАШБОРДА
+    // IDE може писати "no usages", це нормально.
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
     }
 }

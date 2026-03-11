@@ -52,10 +52,14 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::apiResource('admin/users', UserController::class);
 
-        Route::get('/admin/stats', [DashboardController::class, 'stats']);
+        // ОСТАВЛЯЕМ ТОЛЬКО ЭТОТ МАРШРУТ:
+        // Он соответствует тому, что ищет фронтенд (/api/admin/stats)
+        // И вызывает правильный метод (getStats), который возвращает нужный JSON
+        Route::get('/admin/stats', [DashboardController::class, 'getStats']);
 
-        // Тут будуть усі інші маршрути адміністратора
-        // Route::post('admin/users', [UserController::class, 'store']);
+        // УДАЛИ или закомментируй эти строки, если они есть ниже:
+        // Route::get('/admin/dashboard-stats', [DashboardController::class, 'getStats']);
+        // Route::get('/admin/stats', [DashboardController::class, 'stats']);
     });
 
     // 3. СЕКЦІЯ ВИКЛАДАЧА (Вкладено всередину /api та auth:sanctum)

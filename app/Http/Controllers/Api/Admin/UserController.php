@@ -7,35 +7,38 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Http\JsonResponse;
 
 class UserController extends Controller
 {
     /**
-     * Отримати список усіх користувачів.
-     * Додано: підвантаження ролей ТА груп для вчителів.
+     * Отримати список персоналу (Адміни та Вчителі).
      */
-    public function index()
+    public function index(): JsonResponse
     {
-        // Додаємо 'groups', щоб фронтенд міг показати кількість груп у кожного вчителя
-        $users = User::with(['roles', 'groups'])->get();
+        // Завантажуємо тільки персонал. Оскільки в таблиці users тепер лише вони,
+        // ми просто беремо всіх користувачів з їхніми ролями та групами, якими вони керують.
+        $users = User::with(['roles', 'groups' => function($query) {
+            $query->withCount('students'); // Це важливо, щоб фронтенд бачив кількість учнів у вчителя
+        }])->get();
 
         return response()->json([
             'status'  => 'success',
-            'message' => 'Список користувачів отримано',
-            'data' => $users,
+            'message' => 'Список персоналу отримано',
+            'data'    => $users,
         ], 200);
     }
 
     /**
-     * Створити користувача через адмін-панель.
-     * Додано: підтримка спеціалізації та навантаження.
+     * Створити адміністратора або вчителя.
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name'           => 'required|string|max:255',
             'email'          => 'required|string|email|max:255|unique:users',
             'password'       => 'required|string|min:8',
+            // Тепер дозволені тільки ролі персоналу
             'role'           => ['required', Rule::in(['admin', 'teacher'])],
             'specialization' => 'nullable|string|max:255',
             'weekly_load'    => 'nullable|integer|min:0|max:168',
@@ -45,24 +48,24 @@ class UserController extends Controller
             'name'           => $validated['name'],
             'email'          => $validated['email'],
             'password'       => Hash::make($validated['password']),
+            'status'         => 'active',
             'specialization' => $validated['specialization'] ?? null,
             'weekly_load'    => $validated['weekly_load'] ?? 0,
         ]);
 
-        // Синхронізуємо обрану роль
         $user->syncRoles([$validated['role']]);
 
         return response()->json([
-            'message' => 'Користувача успішно створено адміном',
+            'status'  => 'success',
+            'message' => 'Користувача персоналу успішно створено',
             'user'    => $user->load('roles', 'groups')
         ], 201);
     }
 
     /**
-     * Оновити дані користувача.
-     * Додано: оновлення нових полів.
+     * Оновити дані вчителя або адміна.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $id): JsonResponse
     {
         $user = User::findOrFail($id);
 
@@ -70,32 +73,31 @@ class UserController extends Controller
             'name'           => 'sometimes|string|max:255',
             'email'          => ['sometimes', 'email', Rule::unique('users')->ignore($user->id)],
             'role'           => ['sometimes', Rule::in(['admin', 'teacher'])],
+            'status'         => 'sometimes|string',
             'specialization' => 'sometimes|nullable|string|max:255',
             'weekly_load'    => 'sometimes|integer|min:0|max:168',
         ]);
 
-        // Оновлюємо тільки ті поля, що пройшли валідацію
-        $user->update($validated);
-
-        // Якщо в запиті була зміна ролі
         if ($request->has('role')) {
             $user->syncRoles([$request->role]);
         }
 
+        $user->update($request->except('role'));
+
         return response()->json([
-            'message' => 'Дані користувача оновлено',
+            'status'  => 'success',
+            'message' => 'Дані оновлено',
             'user'    => $user->load('roles', 'groups')
         ]);
     }
 
     /**
-     * Видалити користувача.
+     * Видалити користувача персоналу.
      */
-    public function destroy(string $id)
+    public function destroy(string $id): JsonResponse
     {
         $user = User::findOrFail($id);
 
-        // Захист від самовидалення
         if ($user->id === auth()->id()) {
             return response()->json(['message' => 'Ви не можете видалити власний акаунт'], 403);
         }
@@ -103,7 +105,8 @@ class UserController extends Controller
         $user->delete();
 
         return response()->json([
-            'message' => 'Користувача успішно видалено'
+            'status'  => 'success',
+            'message' => 'Користувача видалено'
         ]);
     }
 }
