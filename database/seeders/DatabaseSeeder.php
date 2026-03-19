@@ -11,14 +11,14 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
+use Carbon\Carbon;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        echo "Таблиці очищено. Починаємо заповнення...\n";
+        echo "Запуск глибокої симуляції даних для аналітики...\n";
 
-        // Отключаем проверку внешних ключей для очистки
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         User::truncate();
         Student::truncate();
@@ -27,13 +27,14 @@ class DatabaseSeeder extends Seeder
         Attendance::truncate();
         DB::table('roles')->truncate();
         DB::table('model_has_roles')->truncate();
+        DB::table('group_student')->truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // 1. Создаем роли персонала
+        // 1. Створення ролей
         $adminRole = Role::create(['name' => 'admin']);
         $teacherRole = Role::create(['name' => 'teacher']);
 
-        // 2. Создаем персонал (Админ и Учитель)
+        // 2. Створення адміна та вчителів
         $admin = User::create([
             'name' => 'Головний Адміністратор',
             'email' => 'admin@crm.test',
@@ -42,71 +43,114 @@ class DatabaseSeeder extends Seeder
         ]);
         $admin->assignRole($adminRole);
 
-        $teacher = User::create([
-            'name' => 'Олександр Вчитель',
-            'email' => 'teacher@crm.test',
-            'password' => Hash::make('password'),
-            'status' => 'active',
-        ]);
-        $teacher->assignRole($teacherRole);
+        $teachers = [
+            ['name' => 'Олександр Вчитель', 'email' => 'teacher1@crm.test'],
+            ['name' => 'Тетяна Морозова', 'email' => 'teacher2@crm.test'],
+        ];
 
-        // 3. Создаем СТУДЕНТОВ (в новую таблицу students)
-        $student1 = Student::create([
-            'name' => 'Іван Іванов',
-            'email' => 'ivan@example.com',
-            'phone' => '+380990001122',
-            'status' => 'active',
-        ]);
+        $teacherIds = [];
+        foreach ($teachers as $t) {
+            $user = User::create([
+                'name' => $t['name'],
+                'email' => $t['email'],
+                'password' => Hash::make('password'),
+                'status' => 'active',
+            ]);
+            $user->assignRole($teacherRole);
+            $teacherIds[] = $user->id;
+        }
 
-        $student2 = Student::create([
-            'name' => 'Марія Сидоренко',
-            'email' => 'maria@example.com',
-            'status' => 'active',
-        ]);
+        // 3. Створення груп з різними датами (для графіка Груп)
+        $groupDefinitions = [
+            ['name' => 'English A1', 'months_ago' => 5],
+            ['name' => 'English B2', 'months_ago' => 3],
+            ['name' => 'English C1', 'months_ago' => 1],
+        ];
 
-        $student3 = Student::create([
-            'name' => 'Петро Петренко',
-            'status' => 'inactive', // Для проверки статистики
-        ]);
+        $groups = [];
+        foreach ($groupDefinitions as $index => $g) {
+            $createdAt = Carbon::now()->subMonths($g['months_ago'])->startOfMonth();
+            $groups[] = Group::create([
+                'name' => $g['name'],
+                'teacher_id' => $teacherIds[$index % count($teacherIds)],
+                'status' => 'active',
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+        }
 
-        // 4. Создаем Группу
-        $group = Group::create([
-            'name' => 'English Upper-Intermediate',
-            'teacher_id' => $teacher->id,
-            'status' => 'active',
-        ]);
+        // 4. Створення пулу студентів
+        $studentsPool = [
+            ['name' => 'Іван Іванов', 'email' => 'ivan@example.com'],
+            ['name' => 'Марія Сидоренко', 'email' => 'maria@example.com'],
+            ['name' => 'Петро Петренко', 'email' => 'petro@example.com'],
+            ['name' => 'Анна Коваль', 'email' => 'anna@example.com'],
+            ['name' => 'Дмитро Бондаренко', 'email' => 'dmitro@example.com'],
+            ['name' => 'Олена Кравченко', 'email' => 'olena@example.com'],
+            ['name' => 'Сергій Мельник', 'email' => 'serg@example.com'],
+            ['name' => 'Юлія Шевченко', 'email' => 'yulia@example.com'],
+            ['name' => 'Максим Орлов', 'email' => 'max@example.com'],
+            ['name' => 'Вікторія Ткач', 'email' => 'vikt@example.com'],
+        ];
 
-        // Привязываем студентов к группе
-        $group->students()->attach([$student1->id, $student2->id, $student3->id]);
+        foreach ($studentsPool as $index => $data) {
+            $studentCreated = Carbon::now()->subMonths(5 - ($index % 6))->subDays(rand(1, 15));
 
-        // 5. Создаем ПЛАТЕЖИ (используем student_id!)
-        Payment::create([
-            'student_id' => $student1->id,
-            'amount' => 1200.00,
-            'paid_at' => now(),
-        ]);
+            $student = Student::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'status' => 'active',
+                'created_at' => $studentCreated,
+                'updated_at' => $studentCreated,
+            ]);
 
-        Payment::create([
-            'student_id' => $student2->id,
-            'amount' => 1500.00,
-            'paid_at' => now()->subDays(5),
-        ]);
+            $availableGroups = array_filter($groups, function($g) use ($studentCreated) {
+                return $g->created_at <= $studentCreated;
+            });
 
-        // 6. Создаем ПОСЕЩАЕМОСТЬ (используем student_id!)
-        Attendance::create([
-            'student_id' => $student1->id,
-            'group_id' => $group->id,
-            'lesson_date' => now(),
-            'is_present' => true,
-        ]);
+            if (empty($availableGroups)) $availableGroups = [$groups[0]];
+            $assignedGroup = $availableGroups[array_rand($availableGroups)];
+            $assignedGroup->students()->attach($student->id);
 
-        Attendance::create([
-            'student_id' => $student2->id,
-            'group_id' => $group->id,
-            'lesson_date' => now(),
-            'is_present' => false,
-        ]);
+            // 5. ГЕНЕРАЦІЯ ПЛАТЕЖІВ
+            $paymentDate = $studentCreated->copy()->startOfMonth();
+            while ($paymentDate <= Carbon::now()) {
+                Payment::create([
+                    'student_id' => $student->id,
+                    'amount' => rand(1500, 3000),
+                    'paid_at' => $paymentDate->copy()->addDays(rand(1, 10)),
+                    'created_at' => $paymentDate->copy()->addDays(rand(1, 10)),
+                ]);
+                $paymentDate->addMonth();
+            }
 
-        echo "Заповнення завершено успішно!\n";
+            // 6. ГЕНЕРАЦІЯ ВІДВІДУВАНОСТІ З РІЗНИМИ ЦИФРАМИ
+            $attendanceDate = $studentCreated->copy();
+
+            // Створюємо масив "настрою" для кожного місяця (ймовірність присутності)
+            $monthlyLuck = [];
+            for ($m = 0; $m <= 6; $m++) {
+                $monthlyLuck[Carbon::now()->subMonths($m)->month] = rand(5, 9); // від 50% до 90%
+            }
+
+            while ($attendanceDate <= Carbon::now()) {
+                if (in_array($attendanceDate->dayOfWeek, [1, 3, 5])) {
+                    $currentMonth = $attendanceDate->month;
+                    $luckThreshold = $monthlyLuck[$currentMonth] ?? 7;
+
+                    Attendance::create([
+                        'student_id' => $student->id,
+                        'group_id' => $assignedGroup->id,
+                        'lesson_date' => $attendanceDate->toDateString(),
+                        // Використовуємо поріг місяця для рандому
+                        'is_present' => (rand(1, 10) <= $luckThreshold),
+                        'created_at' => $attendanceDate,
+                    ]);
+                }
+                $attendanceDate->addDay();
+            }
+        }
+
+        echo "Глибоке заповнення завершено. Тепер всі графіки відображатимуть динаміку за півроку!\n";
     }
 }
