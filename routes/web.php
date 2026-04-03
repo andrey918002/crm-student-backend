@@ -7,10 +7,12 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 
-// Импортируем API контроллеры с псевдонимами, чтобы не было ошибки "name already in use"
+// Импортируем API контроллеры
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Teacher\GroupController;
+// Добавляем импорт контроллера логов
+use App\Http\Controllers\Api\Admin\ActivityLogController;
 
 // =========================================================================
 // INERTIA/WEB ROUTES (Для стандартного отображения страниц)
@@ -29,7 +31,6 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-// Веб-интерфейс профиля (оставляем как есть)
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -49,21 +50,27 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
         return $request->user()->load('roles');
     });
 
-    // 2. Личный профиль (API версия для SPA)
-    // Используем псевдоним ApiProfileController
+    // 2. Личный профиль
     Route::get('/profile/data', [ApiProfileController::class, 'show']);
     Route::put('/profile/data', [ApiProfileController::class, 'update']);
 
     // 3. Секция администратора
     Route::middleware('role:admin')->group(function () {
-        // Управление персоналом (CRUD)
+        // Управление персоналом
         Route::apiResource('admin/users', UserController::class);
-
-        // Тот самый эндпоинт для смены роли (Условие: Админ <-> Учитель)
         Route::put('admin/users/{user}/role', [UserController::class, 'updateRole']);
-
-        // Статистика для дашборда
         Route::get('/admin/stats', [DashboardController::class, 'getStats']);
+
+        // --- ЛОГИ АКТИВНОСТИ ---
+        // Получить все логи (с пагинацией)
+        Route::get('admin/logs', [ActivityLogController::class, 'index']);
+
+        // Получить логи конкретной модели (студент, группа и т.д.)
+        // Пример: /api/admin/logs/student/1
+        Route::get('admin/logs/{type}/{id}', [ActivityLogController::class, 'showByModel']);
+
+        // Очистка логов (согласно конфигу)
+        Route::post('admin/logs/clean', [ActivityLogController::class, 'clean']);
     });
 
     // 4. Секция преподавателя

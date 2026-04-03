@@ -2,36 +2,46 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, LogsActivity;
+
+    /**
+     * Настройка логирования для модели User
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('users')
+            ->setDescriptionForEvent(fn(string $eventName) => "Пользователь {$this->name} был {$eventName}");
+    }
 
     /**
      * The attributes that are mass assignable.
-     *
-     * @var list<string>
      */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'status', // КРИТИЧНО: Додайте це поле, щоб працював статус активності
+        'status',
         'specialization',
         'weekly_load',
     ];
 
     /**
      * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
      */
     protected $hidden = [
         'password',
@@ -40,8 +50,6 @@ class User extends Authenticatable
 
     /**
      * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
      */
     protected function casts(): array
     {
@@ -54,8 +62,6 @@ class User extends Authenticatable
     protected static function booted()
     {
         static::created(function ($user) {
-            // Якщо у користувача ще немає ролі (наприклад, при реєстрації),
-            // даємо йому роль 'teacher'
             if ($user->roles()->count() === 0) {
                 $user->assignRole('teacher');
             }
@@ -64,12 +70,9 @@ class User extends Authenticatable
 
     public function groups()
     {
-        // Зв'язок: один викладач має багато груп
         return $this->hasMany(\App\Models\Group::class, 'teacher_id');
     }
 
-    // НОВІ ЗВ'ЯЗКИ ДЛЯ СТАТИСТИКИ ДАШБОРДА
-    // IDE може писати "no usages", це нормально.
     public function payments()
     {
         return $this->hasMany(Payment::class);

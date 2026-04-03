@@ -7,15 +7,20 @@ use App\Models\Student;
 use App\Models\Group;
 use App\Models\Payment;
 use App\Models\Attendance;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function getStats(): JsonResponse
     {
         try {
+            // Устанавливаем локализацию для корректных названий месяцев
+            Carbon::setLocale('uk');
+
             $now = Carbon::now();
             $startOfMonth = $now->copy()->startOfMonth();
             $endOfMonth = $now->copy()->endOfMonth();
@@ -23,14 +28,19 @@ class DashboardController extends Controller
             $startOfLastMonth = $now->copy()->subMonth()->startOfMonth();
             $endOfLastMonth = $now->copy()->subMonth()->endOfMonth();
 
+            // Основные счетчики
             $totalStudents = Student::count();
             $activeStudents = Student::where('status', 'active')->count();
-            $activeGroups = Group::where('status', 'active')->count();
 
+            // ВНИМАНИЕ: Исправлено согласно вашей миграции enum('Набір', 'Активна', 'Завершена')
+            $activeGroups = Group::where('status', 'Активна')->count();
+
+            // Расчет тренда студентов
             $newStudentsThisMonth = Student::whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
             $newStudentsLastMonth = Student::whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])->count();
             $studentTrendUp = $newStudentsThisMonth >= $newStudentsLastMonth;
 
+            // Финансы
             $monthlyIncome = Payment::whereBetween('paid_at', [$startOfMonth, $endOfMonth])->sum('amount');
             $lastMonthIncome = Payment::whereBetween('paid_at', [$startOfLastMonth, $endOfLastMonth])->sum('amount');
 
@@ -41,43 +51,58 @@ class DashboardController extends Controller
                 $incomeTrend = 100;
             }
 
-            // Посещаемость за текущий месяц
+            // Посещаемость за текущий месяц (среднее значение 0..1 превращаем в %)
             $avg = Attendance::whereBetween('lesson_date', [$startOfMonth, $endOfMonth])->avg('is_present');
             $attendanceRate = $avg !== null ? round($avg * 100) : 0;
 
+            // Сбор данных для графиков
             $chartData = $this->getChartData();
+
+            // Топ преподавателей (используем ваши новые поля specialization и weekly_load)
+            $topTeachers = User::whereNotNull('specialization')
+                ->orderBy('weekly_load', 'desc')
+                ->take(3)
+                ->get(['name', 'specialization', 'weekly_load']);
 
             return response()->json([
                 'status' => 'success',
                 'data' => [
-                    'teacher_stats' => [
-                        'total_students' => (int)$totalStudents,
-                        'active_students' => (int)$activeStudents,
-                        'active_groups' => (int)$activeGroups,
-                        'total_income' => (float)$monthlyIncome,
-                        'attendance_rate' => (int)$attendanceRate,
-                        'income_trend' => round($incomeTrend, 1)
-                    ],
-                    'crm_stats' => [
-                        'total_students' => (int)$totalStudents,
-                        'active_groups' => (int)$activeGroups,
-                        'new_this_month' => $newStudentsThisMonth
-                    ],
                     'main_stats' => [
                         [
                             'label' => 'Студенти',
                             'value' => (int)$totalStudents,
                             'trend' => "+$newStudentsThisMonth за місяць",
-                            'trendUp' => $studentTrendUp
+                            'trendUp' => $studentTrendUp,
+                            'icon' => 'users'
                         ],
                         [
                             'label' => 'Дохід (міс.)',
                             'value' => number_format($monthlyIncome, 0, '.', ' ') . ' ₴',
                             'trend' => round($incomeTrend, 1) . '%',
-                            'trendUp' => $incomeTrend >= 0
+                            'trendUp' => $incomeTrend >= 0,
+                            'icon' => 'currency-dollar'
                         ],
+                        [
+                            'label' => 'Відвідуваність',
+                            'value' => $attendanceRate . '%',
+                            'trend' => 'Середня за місяць',
+                            'trendUp' => $attendanceRate > 75,
+                            'icon' => 'calendar'
+                        ],
+                        [
+                            'label' => 'Активні групи',
+                            'value' => (int)$activeGroups,
+                            'trend' => 'У процесі навчання',
+                            'trendUp' => true,
+                            'icon' => 'academic-cap'
+                        ]
                     ],
-                    'charts' => $chartData
+                    'charts' => $chartData,
+                    'top_teachers' => $topTeachers,
+                    'recent_activity' => [
+                        'new_students' => $newStudentsThisMonth,
+                        'active_now' => $activeStudents
+                    ]
                 ]
             ]);
 
@@ -85,7 +110,7 @@ class DashboardController extends Controller
             Log::error("Dashboard Error: " . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => $e->getMessage()
+                'message' => 'Помилка завантаження даних дашборду: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -102,21 +127,17 @@ class DashboardController extends Controller
             // 1. Доход
             $income = Payment::whereBetween('paid_at', [$monthStart, $monthEnd])->sum('amount');
 
-            // 2. Студенты (общее кол-во на тот момент)
+            // 2. Студенты (кумулятивно: сколько всего было на тот момент)
             $studentsCount = Student::where('created_at', '<=', $monthEnd)->count();
 
-            // 3. Группы (кол-во созданных до конца того месяца)
-            $groupsCount = Group::where('created_at', '<=', $monthEnd)->count();
-
-            // 4. Посещаемость (среднее за конкретный месяц по колонке lesson_date)
+            // 3. Посещаемость
             $avgAttendance = Attendance::whereBetween('lesson_date', [$monthStart, $monthEnd])
                 ->avg('is_present');
 
             $data[] = [
-                'name' => $month->translatedFormat('M'), // Напр: "Березень"
+                'name' => $month->translatedFormat('M'), // "Бер", "Кві" и т.д.
                 'income' => (int)$income,
                 'students' => (int)$studentsCount,
-                'groups' => (int)$groupsCount,
                 'attendance' => $avgAttendance !== null ? round($avgAttendance * 100) : 0
             ];
         }

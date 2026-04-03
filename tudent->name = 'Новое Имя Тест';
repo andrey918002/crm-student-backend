@@ -1,0 +1,11 @@
+[90m= [39m[34;4mApp\Models\Student[39;24m {#6626
+    [34mid[39m: [35m1[39m,
+    [34mname[39m: "[32mІван Іванов[39m",
+    [34memail[39m: "[32mivan@example.com[39m",
+    [34mphone[39m: [36mnull[39m,
+    [34mstatus[39m: "[32mactive[39m",
+    [34madditional_info[39m: [36mnull[39m,
+    [34mcreated_at[39m: "[32m2025-10-16 18:12:32[39m",
+    [34mupdated_at[39m: "[32m2025-10-16 18:12:32[39m",
+  }
+
