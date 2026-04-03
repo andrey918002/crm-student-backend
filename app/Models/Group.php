@@ -46,6 +46,10 @@ class Group extends Model
 
     public function getStudentsCountAttribute(): int
     {
+        // Оптимизация: если withCount('students') использовался, вернуть это значение
+        if (array_key_exists('students_count', $this->attributes)) {
+            return (int) $this->attributes['students_count'];
+        }
         return $this->students()->count();
     }
 }

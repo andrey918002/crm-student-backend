@@ -25,6 +25,7 @@ class User extends Authenticatable
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('users')
+            ->logExcept(['password'])
             ->setDescriptionForEvent(fn(string $eventName) => "Пользователь {$this->name} был {$eventName}");
     }
 

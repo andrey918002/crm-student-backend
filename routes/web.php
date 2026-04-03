@@ -1,21 +1,23 @@
 <?php
 
-use App\Http\Controllers\Api\Admin\DashboardController;
-use App\Http\Controllers\ProfileController; // Стандартный для Inertia
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
-// Импортируем API контроллеры
+// Контроллеры веб-части
+use App\Http\Controllers\ProfileController;
+
+// API Контроллеры
 use App\Http\Controllers\Api\ProfileController as ApiProfileController;
 use App\Http\Controllers\Api\Admin\UserController;
-use App\Http\Controllers\Api\Teacher\GroupController;
-// Добавляем импорт контроллера логов
+use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\ActivityLogController;
+use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\Teacher\GroupController;
 
 // =========================================================================
-// INERTIA/WEB ROUTES (Для стандартного отображения страниц)
+// INERTIA/WEB ROUTES (Стандартные страницы)
 // =========================================================================
 
 Route::get('/', function () {
@@ -40,7 +42,7 @@ Route::middleware('auth')->group(function () {
 require __DIR__.'/auth.php';
 
 // =========================================================================
-// API ROUTES FOR FRONTEND (Работа с React/Axios через JSON)
+// API ROUTES FOR FRONTEND (React / Axios)
 // =========================================================================
 
 Route::prefix('api')->middleware('auth:sanctum')->group(function () {
@@ -54,26 +56,28 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
     Route::get('/profile/data', [ApiProfileController::class, 'show']);
     Route::put('/profile/data', [ApiProfileController::class, 'update']);
 
-    // 3. Секция администратора
+    // --- ОБЩИЙ РЕСУРС (Доступен и Админам, и Учителям) ---
+    // Используем нейтральный префикс или просто students.
+    // Оставляю 'admin/students' для совместимости с твоей текущей логикой структуры URL,
+    // но выношу за пределы middleware('role:admin')
+    Route::middleware(['role:admin|teacher'])->group(function () {
+        Route::apiResource('students', StudentController::class);
+    });
+
+    // 3. Секция ТОЛЬКО Администратора
     Route::middleware('role:admin')->group(function () {
-        // Управление персоналом
+        // Управление персоналом (Админы/Учителя)
         Route::apiResource('admin/users', UserController::class);
         Route::put('admin/users/{user}/role', [UserController::class, 'updateRole']);
         Route::get('/admin/stats', [DashboardController::class, 'getStats']);
 
-        // --- ЛОГИ АКТИВНОСТИ ---
-        // Получить все логи (с пагинацией)
+        // Логи активности
         Route::get('admin/logs', [ActivityLogController::class, 'index']);
-
-        // Получить логи конкретной модели (студент, группа и т.д.)
-        // Пример: /api/admin/logs/student/1
         Route::get('admin/logs/{type}/{id}', [ActivityLogController::class, 'showByModel']);
-
-        // Очистка логов (согласно конфигу)
         Route::post('admin/logs/clean', [ActivityLogController::class, 'clean']);
     });
 
-    // 4. Секция преподавателя
+    // 4. Секция ТОЛЬКО Преподавателя
     Route::middleware('role:teacher')->group(function () {
         Route::get('teacher/groups', [GroupController::class, 'index']);
         Route::patch('teacher/groups/{group}/students/{student}/grade', [GroupController::class, 'updateGrade']);

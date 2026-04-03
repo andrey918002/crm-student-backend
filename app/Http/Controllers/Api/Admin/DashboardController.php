@@ -18,7 +18,6 @@ class DashboardController extends Controller
     public function getStats(): JsonResponse
     {
         try {
-            // Устанавливаем локализацию для корректных названий месяцев
             Carbon::setLocale('uk');
 
             $now = Carbon::now();
@@ -31,8 +30,6 @@ class DashboardController extends Controller
             // Основные счетчики
             $totalStudents = Student::count();
             $activeStudents = Student::where('status', 'active')->count();
-
-            // ВНИМАНИЕ: Исправлено согласно вашей миграции enum('Набір', 'Активна', 'Завершена')
             $activeGroups = Group::where('status', 'Активна')->count();
 
             // Расчет тренда студентов
@@ -51,14 +48,13 @@ class DashboardController extends Controller
                 $incomeTrend = 100;
             }
 
-            // Посещаемость за текущий месяц (среднее значение 0..1 превращаем в %)
+            // Посещаемость
             $avg = Attendance::whereBetween('lesson_date', [$startOfMonth, $endOfMonth])->avg('is_present');
             $attendanceRate = $avg !== null ? round($avg * 100) : 0;
 
             // Сбор данных для графиков
             $chartData = $this->getChartData();
 
-            // Топ преподавателей (используем ваши новые поля specialization и weekly_load)
             $topTeachers = User::whereNotNull('specialization')
                 ->orderBy('weekly_load', 'desc')
                 ->take(3)
@@ -67,6 +63,7 @@ class DashboardController extends Controller
             return response()->json([
                 'status' => 'success',
                 'data' => [
+                    // Для компонента AdminStats (4 карточки с иконками)
                     'main_stats' => [
                         [
                             'label' => 'Студенти',
@@ -97,7 +94,17 @@ class DashboardController extends Controller
                             'icon' => 'academic-cap'
                         ]
                     ],
-                    'charts' => $chartData,
+                    // ДЛЯ ВЕРХНИХ КАРТОЧЕК В Admin.tsx (чтобы не было нулей)
+                    'teacher_stats' => [
+                        'total_students' => $totalStudents,
+                        'active_students' => $newStudentsThisMonth, // сколько пришло
+                        'active_groups' => $activeGroups,
+                        'total_income' => $monthlyIncome,
+                        'income_trend' => round($incomeTrend, 1),
+                        'attendance_rate' => $attendanceRate
+                    ],
+                    // ДЛЯ ГРАФИКОВ (обязательно chartData)
+                    'chartData' => $chartData,
                     'top_teachers' => $topTeachers,
                     'recent_activity' => [
                         'new_students' => $newStudentsThisMonth,
@@ -118,25 +125,20 @@ class DashboardController extends Controller
     private function getChartData(): array
     {
         $data = [];
-        // Берем последние 6 месяцев
         for ($i = 5; $i >= 0; $i--) {
             $month = Carbon::now()->subMonths($i);
             $monthStart = $month->copy()->startOfMonth();
             $monthEnd = $month->copy()->endOfMonth();
 
-            // 1. Доход
             $income = Payment::whereBetween('paid_at', [$monthStart, $monthEnd])->sum('amount');
-
-            // 2. Студенты (кумулятивно: сколько всего было на тот момент)
             $studentsCount = Student::where('created_at', '<=', $monthEnd)->count();
-
-            // 3. Посещаемость
             $avgAttendance = Attendance::whereBetween('lesson_date', [$monthStart, $monthEnd])
                 ->avg('is_present');
 
             $data[] = [
-                'name' => $month->translatedFormat('M'), // "Бер", "Кві" и т.д.
+                'name' => $month->translatedFormat('M'),
                 'income' => (int)$income,
+                'revenue' => (int)$income, // дублируем для фронта
                 'students' => (int)$studentsCount,
                 'attendance' => $avgAttendance !== null ? round($avgAttendance * 100) : 0
             ];
