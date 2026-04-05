@@ -7,7 +7,6 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class StudentController extends Controller
 {
@@ -20,8 +19,15 @@ class StudentController extends Controller
         $user = Auth::user();
 
         // Начинаем запрос с подгрузкой групп
-        $query = Student::with(['groups' => function($q) {
-            $q->select('groups.id', 'groups.name', 'groups.teacher_id');
+        $query = Student::with(['groups' => function ($q) {
+            $q->select([
+                'groups.id',
+                'groups.name',
+                'groups.teacher_id',
+                'groups.status',
+                'groups.max_students',
+                'groups.progress',
+            ])->withCount('students');
         }]);
 
         /**
@@ -50,7 +56,10 @@ class StudentController extends Controller
     {
         // Только админ обычно может создавать студентов в CRM
         if (!Auth::user()->hasRole('admin')) {
-            return response()->json(['message' => 'У вас нет прав для создания студентов'], 403);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'У вас нет прав для создания студентов',
+            ], 403);
         }
 
         $validated = $request->validate([
@@ -81,7 +90,10 @@ class StudentController extends Controller
         if ($user->hasRole('teacher') && !$user->hasRole('admin')) {
             $isOwnStudent = $student->groups()->where('teacher_id', $user->id)->exists();
             if (!$isOwnStudent) {
-                return response()->json(['message' => 'Доступ запрещен'], 403);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Доступ запрещен',
+                ], 403);
             }
         }
 
@@ -100,7 +112,10 @@ class StudentController extends Controller
     {
         // Обычно только админ редактирует личные данные и статус
         if (!Auth::user()->hasRole('admin')) {
-            return response()->json(['message' => 'Доступ запрещен'], 403);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Доступ запрещен',
+            ], 403);
         }
 
         $validated = $request->validate([
@@ -126,14 +141,18 @@ class StudentController extends Controller
     public function destroy(Student $student): JsonResponse
     {
         if (!Auth::user()->hasRole('admin')) {
-            return response()->json(['message' => 'Только администратор может удалять записи'], 403);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Только администратор может удалять записи',
+            ], 403);
         }
 
         $student->delete();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Студент удален'
+            'data' => null,
+            'message' => 'Студент удален',
         ]);
     }
 }

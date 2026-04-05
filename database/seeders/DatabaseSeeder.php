@@ -8,6 +8,7 @@ use App\Models\Group;
 use App\Models\Payment;
 use App\Models\Attendance;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
@@ -15,11 +16,15 @@ use Carbon\Carbon;
 
 class DatabaseSeeder extends Seeder
 {
+    /** Статуси груп (латиниця, як у БД та GroupController). */
+    public const GROUP_STATUSES = ['pending', 'active', 'finished'];
+
     public function run(): void
     {
         echo "Запуск глибокої симуляції даних для аналітики...\n";
 
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('activity_log')->truncate();
         User::truncate();
         Student::truncate();
         Group::truncate();
@@ -30,21 +35,34 @@ class DatabaseSeeder extends Seeder
         DB::table('group_student')->truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // 1. Створення ролей
-        $adminRole = Role::create(['name' => 'admin']);
-        $teacherRole = Role::create(['name' => 'teacher']);
+        // 1. Ролі без записів у activity_log (ще немає користувача-ініціатора).
+        [$adminRole, $teacherRole] = activity()->withoutLogs(function () {
+            return [
+                Role::create(['name' => 'admin', 'guard_name' => 'web']),
+                Role::create(['name' => 'teacher', 'guard_name' => 'web']),
+            ];
+        });
 
-        // 2. Створення адміна та вчителів
-        $admin = User::create([
-            'name' => 'Головний Адміністратор',
-            'email' => 'admin@crm.test',
-            'password' => Hash::make('password'),
-            'status' => 'active',
-        ]);
-        $admin->assignRole($adminRole);
+        // 2. Головний адміністратор без логів створення (щоб не було запису з null causer).
+        $admin = activity()->withoutLogs(function () use ($adminRole) {
+            $user = User::create([
+                'name' => 'Головний Адміністратор',
+                'email' => 'admin@example.com',
+                'password' => Hash::make('password'),
+                'status' => 'active',
+            ]);
+            $user->assignRole($adminRole);
 
+            return $user;
+        });
+
+        // Далі всі події LogsActivity йдуть від імені головного адміна.
+        Auth::guard('web')->login($admin);
+
+        // Постійний тестовий викладач: teacher@example.com — має групи в кабінеті (teacher_id у перших групах).
         $teachers = [
-            ['name' => 'Олександр Вчитель', 'email' => 'teacher1@crm.test'],
+            ['name' => 'Олександр Вчитель', 'email' => 'teacher@example.com'],
+            ['name' => 'Ігор Демо', 'email' => 'teacher1@crm.test'],
             ['name' => 'Тетяна Морозова', 'email' => 'teacher2@crm.test'],
         ];
 
@@ -60,7 +78,7 @@ class DatabaseSeeder extends Seeder
             $teacherIds[] = $user->id;
         }
 
-        // 3. Створення груп з різними датами (для графіка Груп)
+        // 3. Створення груп з різними датами (для графіка) та статусами pending / active / finished
         $groupDefinitions = [
             ['name' => 'English A1', 'months_ago' => 5],
             ['name' => 'English B2', 'months_ago' => 3],
@@ -73,7 +91,7 @@ class DatabaseSeeder extends Seeder
             $groups[] = Group::create([
                 'name' => $g['name'],
                 'teacher_id' => $teacherIds[$index % count($teacherIds)],
-                'status' => 'active',
+                'status' => self::GROUP_STATUSES[$index % count(self::GROUP_STATUSES)],
                 'created_at' => $createdAt,
                 'updated_at' => $createdAt,
             ]);

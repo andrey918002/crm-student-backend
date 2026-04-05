@@ -14,7 +14,7 @@ return new class extends Migration
             $table->integer('students_count')->default(0);
             $table->integer('max_students')->default(20);
             $table->integer('progress')->default(0);
-            $table->enum('status', ['Набір', 'Активна', 'Завершена'])->default('Набір');
+            $table->string('status', 32)->default('active');
 
             // Зовнішній ключ на таблицю users
             $table->foreignId('teacher_id')->constrained('users')->onDelete('cascade');

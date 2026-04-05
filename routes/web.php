@@ -49,7 +49,10 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
 
     // 1. Текущий пользователь
     Route::get('/user', function (Request $request) {
-        return $request->user()->load('roles');
+        return response()->json([
+            'status' => 'success',
+            'data' => $request->user()->load('roles'),
+        ]);
     });
 
     // 2. Личный профиль
@@ -58,7 +61,7 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
 
     // --- ОБЩИЙ РЕСУРС (Доступен и Админам, и Учителям) ---
     // Используем нейтральный префикс или просто students.
-    // Оставляю 'admin/students' для совместимости с твоей текущей логикой структуры URL,
+    // Оставляю 'admin/students' для совместимости с текущей логикой структуры URL,
     // но выношу за пределы middleware('role:admin')
     Route::middleware(['role:admin|teacher'])->group(function () {
         Route::apiResource('students', StudentController::class);
@@ -80,6 +83,8 @@ Route::prefix('api')->middleware('auth:sanctum')->group(function () {
     // 4. Секция ТОЛЬКО Преподавателя
     Route::middleware('role:teacher')->group(function () {
         Route::get('teacher/groups', [GroupController::class, 'index']);
+        Route::get('teacher/groups/{group}', [GroupController::class, 'show']);
+        Route::patch('teacher/groups/{group}', [GroupController::class, 'update']);
         Route::patch('teacher/groups/{group}/students/{student}/grade', [GroupController::class, 'updateGrade']);
     });
 });

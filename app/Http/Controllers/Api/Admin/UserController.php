@@ -56,7 +56,7 @@ class UserController extends Controller
         return response()->json([
             'status'  => 'success',
             'message' => 'Користувача персоналу успішно створено',
-            'user'    => $user->load('roles', 'groups')
+            'data'    => $user->load('roles', 'groups'),
         ], 201);
     }
 
@@ -89,7 +89,7 @@ class UserController extends Controller
         return response()->json([
             'status'  => 'success',
             'message' => 'Дані оновлено',
-            'user'    => $user->load('roles', 'groups')
+            'data'    => $user->load('roles', 'groups'),
         ]);
     }
 
@@ -124,7 +124,7 @@ class UserController extends Controller
         return response()->json([
             'status'  => 'success',
             'message' => "Роль користувача успішно змінена на {$request->role}",
-            'user'    => $user->load('roles')
+            'data'    => $user->load('roles'),
         ]);
     }
 
@@ -136,19 +136,26 @@ class UserController extends Controller
         $user = User::findOrFail($id);
 
         if ($user->id === Auth::id()) {
-            return response()->json(['message' => 'Ви не можете видалити власний акаунт'], 403);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Ви не можете видалити власний акаунт',
+            ], 403);
         }
 
         // Аналогічно: забороняємо видаляти інших адмінів
         if ($user->hasRole('admin')) {
-            return response()->json(['message' => 'Ви не можете видалити іншого адміністратора'], 403);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Ви не можете видалити іншого адміністратора',
+            ], 403);
         }
 
         $user->delete();
 
         return response()->json([
             'status'  => 'success',
-            'message' => 'Користувача видалено'
+            'data'    => null,
+            'message' => 'Користувача видалено',
         ]);
     }
 }

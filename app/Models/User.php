@@ -25,7 +25,7 @@ class User extends Authenticatable
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('users')
-            ->logExcept(['password'])
+            ->logExcept(['password', 'email', 'remember_token'])
             ->setDescriptionForEvent(fn(string $eventName) => "Пользователь {$this->name} был {$eventName}");
     }
 
@@ -58,15 +58,6 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
-    }
-
-    protected static function booted()
-    {
-        static::created(function ($user) {
-            if ($user->roles()->count() === 0) {
-                $user->assignRole('teacher');
-            }
-        });
     }
 
     public function groups()

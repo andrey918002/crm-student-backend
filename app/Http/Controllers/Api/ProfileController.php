@@ -18,7 +18,7 @@ class ProfileController extends Controller
     {
         return response()->json([
             'status' => 'success',
-            'user'   => $request->user()->load('roles')
+            'data'   => $request->user()->load('roles'),
         ]);
     }
 
@@ -54,7 +54,7 @@ class ProfileController extends Controller
         return response()->json([
             'status'  => 'success',
             'message' => 'Ваш профіль успішно оновлено',
-            'user'    => $user->load('roles')
+            'data'    => $user->load('roles'),
         ]);
     }
 }

@@ -21,6 +21,14 @@ class Student extends Model
         'additional_info'
     ];
 
+    /**
+     * Добавляем виртуальные атрибуты для сериализации
+     */
+    protected $appends = [
+        'first_name',
+        'last_name',
+    ];
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
@@ -28,6 +36,7 @@ class Student extends Model
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('students')
+            ->logExcept(['email', 'phone', 'additional_info'])
             ->setDescriptionForEvent(fn(string $eventName) => "Студент '{$this->name}' был {$eventName}");
     }
 
@@ -51,5 +60,23 @@ class Student extends Model
     public function isActive(): bool
     {
         return $this->status === 'active';
+    }
+
+    /**
+     * Виртуальный атрибут: имя (first_name)
+     */
+    public function getFirstNameAttribute(): string
+    {
+        $parts = explode(' ', $this->name, 2);
+        return $parts[0] ?? '';
+    }
+
+    /**
+     * Виртуальный атрибут: фамилия (last_name)
+     */
+    public function getLastNameAttribute(): string
+    {
+        $parts = explode(' ', $this->name, 2);
+        return $parts[1] ?? '';
     }
 }

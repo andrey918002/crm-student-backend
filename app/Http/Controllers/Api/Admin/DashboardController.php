@@ -11,7 +11,6 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -29,8 +28,17 @@ class DashboardController extends Controller
 
             // Основные счетчики
             $totalStudents = Student::count();
-            $activeStudents = Student::where('status', 'active')->count();
-            $activeGroups = Group::where('status', 'Активна')->count();
+            $studentsWithActiveStatus = Student::where('status', 'active')->count();
+            $activeGroups = Group::where('status', 'active')->count();
+
+            $since30Days = $now->copy()->subDays(30);
+            $activeStudents = Student::where(function ($query) use ($since30Days) {
+                $query->whereHas('attendances', function ($q) use ($since30Days) {
+                    $q->where('lesson_date', '>=', $since30Days->toDateString());
+                })->orWhereHas('payments', function ($q) use ($since30Days) {
+                    $q->where('paid_at', '>=', $since30Days);
+                });
+            })->count();
 
             // Расчет тренда студентов
             $newStudentsThisMonth = Student::whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
@@ -97,7 +105,8 @@ class DashboardController extends Controller
                     // ДЛЯ ВЕРХНИХ КАРТОЧЕК В Admin.tsx (чтобы не было нулей)
                     'teacher_stats' => [
                         'total_students' => $totalStudents,
-                        'active_students' => $newStudentsThisMonth, // сколько пришло
+                        'active_students' => $activeStudents,
+                        'new_students_this_month' => $newStudentsThisMonth,
                         'active_groups' => $activeGroups,
                         'total_income' => $monthlyIncome,
                         'income_trend' => round($incomeTrend, 1),
@@ -108,7 +117,7 @@ class DashboardController extends Controller
                     'top_teachers' => $topTeachers,
                     'recent_activity' => [
                         'new_students' => $newStudentsThisMonth,
-                        'active_now' => $activeStudents
+                        'active_now' => $studentsWithActiveStatus
                     ]
                 ]
             ]);
@@ -132,6 +141,7 @@ class DashboardController extends Controller
 
             $income = Payment::whereBetween('paid_at', [$monthStart, $monthEnd])->sum('amount');
             $studentsCount = Student::where('created_at', '<=', $monthEnd)->count();
+            $groupsCount = Group::where('created_at', '<=', $monthEnd)->count();
             $avgAttendance = Attendance::whereBetween('lesson_date', [$monthStart, $monthEnd])
                 ->avg('is_present');
 
@@ -140,6 +150,7 @@ class DashboardController extends Controller
                 'income' => (int)$income,
                 'revenue' => (int)$income, // дублируем для фронта
                 'students' => (int)$studentsCount,
+                'groups' => (int)$groupsCount,
                 'attendance' => $avgAttendance !== null ? round($avgAttendance * 100) : 0
             ];
         }

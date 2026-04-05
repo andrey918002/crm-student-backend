@@ -50,7 +50,7 @@ class GroupController extends Controller
 
         $validated = $request->validate([
             'progress' => 'sometimes|integer|min:0|max:100',
-            'status' => 'sometimes|string|in:Набір,Активна,Завершена',
+            'status' => 'sometimes|string|in:pending,active,finished',
         ]);
 
         $group->update($validated);
@@ -80,7 +80,12 @@ class GroupController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Оцінку студента оновлено'
+            'data' => [
+                'group_id' => (int) $groupId,
+                'student_id' => (int) $studentId,
+                'grade' => (int) $request->grade,
+            ],
+            'message' => 'Оцінку студента оновлено',
         ]);
     }
 }

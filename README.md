@@ -57,3 +57,36 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+
+Метод,URL,Контроллер@Метод,Описание
+GET,/api/user,Closure,"Данные текущей сессии + роли. Формат: {status, data}."
+GET,/api/profile/data,ProfileController@show,Получение данных профиля для формы редактирования.
+PUT,/api/profile/data,ProfileController@update,"Обновление данных (имя, пароль и т.д.) текущим пользователем."
+
+Метод,URL,Контроллер@Метод,Описание
+GET,/api/students,StudentController@index,"Список студентов. Админ видит всех, учитель — только своих."
+POST,/api/students,StudentController@store,Создание новой карточки студента (только Админ).
+GET,/api/students/{id},StudentController@show,Детальная информация о конкретном студенте.
+PUT,/api/students/{id},StudentController@update,Полное обновление данных студента.
+DELETE,/api/students/{id},StudentController@destroy,Удаление студента из системы.
+
+Метод,URL,Контроллер@Метод,Описание
+GET,/api/admin/users,UserController@index,Список всех сотрудников (админов и учителей).
+POST,/api/admin/users,UserController@store,Регистрация нового сотрудника.
+GET,/api/admin/users/{id},UserController@show,Просмотр профиля сотрудника.
+PUT,/api/admin/users/{id},UserController@update,Редактирование данных сотрудника.
+DELETE,/api/admin/users/{id},UserController@destroy,Удаление учетной записи сотрудника.
+PUT,/api/admin/users/{id}/role,UserController@updateRole,"Смена роли (например, повышение учителя до админа)."
+
+Метод,URL,Контроллер@Метод,Описание
+GET,/api/teacher/groups,GroupController@index,"Список групп, закрепленных за учителем."
+GET,/api/teacher/groups/{id},GroupController@show,"Детальные данные группы (список студентов, расписание)."
+PATCH,/api/teacher/groups/{id},GroupController@update,Обновление прогресса или смена статуса группы.
+PATCH,/api/teacher/.../grade,GroupController@updateGrade,Выставление/изменение оценки студенту в рамках группы.
+
+Метод,URL,Контроллер@Метод,Описание
+GET,/api/admin/stats,DashboardController@getStats,Данные для графиков и счетчиков на главном дашборде.
+GET,/api/admin/logs,ActivityLogController@index,Общий журнал действий всех пользователей.
+GET,/api/admin/logs/{type}/{id},ActivityLogController@showByModel,История изменений конкретной сущности (Студента/Группы).
+POST,/api/admin/logs/clean,ActivityLogController@clean,Ручная очистка старых записей журнала.

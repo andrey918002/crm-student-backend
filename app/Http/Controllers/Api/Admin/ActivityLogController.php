@@ -17,17 +17,19 @@ class ActivityLogController extends Controller
     {
         try {
             // Мы используем paginate, но убираем strict loading для теста
-            $logs = \Spatie\Activitylog\Models\Activity::latest()
+            $logs = Activity::query()
+                ->with(['causer' => fn ($q) => $q->select('id', 'name')])
+                ->latest()
                 ->paginate(50);
 
             return response()->json([
-                'success' => true,
-                'data' => $logs
+                'status' => 'success',
+                'data' => $logs,
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
+                'status' => 'error',
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -53,20 +55,20 @@ class ActivityLogController extends Controller
 
         if (!$className) {
             return response()->json([
-                'success' => false,
-                'message' => 'Тип модели не поддерживается'
+                'status' => 'error',
+                'message' => 'Тип модели не поддерживается',
             ], 404);
         }
 
         $logs = Activity::where('subject_type', $className)
             ->where('subject_id', $modelId)
-            ->with('causer')
+            ->with(['causer' => fn ($q) => $q->select('id', 'name')])
             ->latest()
             ->get();
 
         return response()->json([
-            'success' => true,
-            'data' => $logs
+            'status' => 'success',
+            'data' => $logs,
         ]);
     }
 
@@ -79,8 +81,9 @@ class ActivityLogController extends Controller
         \Illuminate\Support\Facades\Artisan::call('activitylog:clean');
 
         return response()->json([
-            'success' => true,
-            'message' => 'Старые логи успешно удалены'
+            'status' => 'success',
+            'data' => null,
+            'message' => 'Старые логи успешно удалены',
         ]);
     }
 }
